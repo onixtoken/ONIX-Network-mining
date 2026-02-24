@@ -120,6 +120,7 @@ const authenticate = (req: any, res: any, next: any) => {
 app.post("/api/auth/login", async (req, res) => {
   try {
     const { email: rawEmail, password, username, isRegister } = req.body;
+    console.log(`Login attempt: email=${rawEmail}, isRegister=${isRegister}`);
 
     if (!rawEmail || !password) {
       return res.status(400).json({ error: "Email and password are required" });
@@ -128,6 +129,7 @@ app.post("/api/auth/login", async (req, res) => {
     const email = rawEmail.toLowerCase().trim();
 
     if (isRegister) {
+      console.log("Processing registration...");
       if (!username || username.length < 3) {
         return res.status(400).json({ error: "Username must be at least 3 characters" });
       }
@@ -150,34 +152,41 @@ app.post("/api/auth/login", async (req, res) => {
 
       const user = db.prepare("SELECT * FROM users WHERE id = ?").get(result.lastInsertRowid) as any;
       const token = jwt.sign({ id: user.id, username: user.username, isAdmin: user.is_admin }, JWT_SECRET, { expiresIn: "7d" });
+      console.log("Registration successful for:", email);
       return res.json({ token, user });
     } else {
+      console.log("Processing login...");
       const user = db.prepare("SELECT * FROM users WHERE email = ? OR username = ?").get(email, rawEmail) as any;
       if (!user) {
+        console.log("User not found:", email);
         return res.status(400).json({ error: "Invalid email/username or password" });
       }
 
       // Auto-promote first user to admin if no admins exist
       const adminCount = db.prepare("SELECT COUNT(*) as count FROM users WHERE is_admin = 1").get() as any;
       if (adminCount.count === 0) {
+        console.log("No admins found. Promoting user:", user.username);
         db.prepare("UPDATE users SET is_admin = 1 WHERE id = ?").run(user.id);
         user.is_admin = 1;
       }
 
       if (!user.password) {
+        console.log("User has no password (external auth?):", email);
         return res.status(400).json({ error: "This account was created without a password. Please use the original login method." });
       }
 
       const isPasswordValid = await bcrypt.compare(password, user.password);
       if (!isPasswordValid) {
+        console.log("Invalid password for:", email);
         return res.status(400).json({ error: "Invalid email/username or password" });
       }
 
       const token = jwt.sign({ id: user.id, username: user.username, isAdmin: user.is_admin }, JWT_SECRET, { expiresIn: "7d" });
+      console.log("Login successful for:", email);
       return res.json({ token, user });
     }
   } catch (err: any) {
-    console.error("Auth error:", err);
+    console.error("Auth error details:", err);
     res.status(500).json({ error: err.message || "Internal server error" });
   }
 });

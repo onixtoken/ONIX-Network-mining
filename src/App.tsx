@@ -16,6 +16,7 @@ import { useState, useEffect, cloneElement, ReactNode, ReactElement, FormEvent }
 import { motion, AnimatePresence } from "motion/react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { Analytics } from "@vercel/analytics/react";
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -39,6 +40,7 @@ export default function App() {
         >
           <Pickaxe className="w-12 h-12 text-emerald-500" />
         </motion.div>
+        <Analytics />
       </div>
     );
   }
@@ -139,6 +141,7 @@ export default function App() {
             Secure your account with email and password to preserve your mining progress.
           </p>
         </motion.div>
+        <Analytics />
       </div>
     );
   }
@@ -191,6 +194,7 @@ export default function App() {
           )}
         </div>
       </nav>
+      <Analytics />
     </div>
   );
 }

@@ -12,6 +12,7 @@ interface User {
   is_mining: boolean;
   total_mined: number;
   is_admin: boolean;
+  wallet_address?: string;
 }
 
 interface AuthContextType {

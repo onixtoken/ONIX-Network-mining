@@ -335,7 +335,15 @@ function MiningDashboard() {
         </div>
         <div className="relative z-10 space-y-1">
           <div className="flex justify-between items-start">
-            <p className="text-zinc-500 text-sm font-medium uppercase tracking-widest">Available Balance</p>
+            <div className="space-y-1">
+              <p className="text-zinc-500 text-sm font-medium uppercase tracking-widest">Available Balance</p>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                <span className="text-[10px] font-mono text-blue-400 uppercase tracking-tighter">
+                  Block #{stats.currentBlock.toLocaleString()}
+                </span>
+              </div>
+            </div>
             <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-full px-3 py-1 flex items-center gap-2">
               <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
               <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-tighter">
@@ -361,8 +369,8 @@ function MiningDashboard() {
         )}
         <StatCard 
           icon={<Zap className="text-yellow-500" />} 
-          label="Hashrate" 
-          value={`${(user?.hashrate_multiplier || 1).toFixed(1)}x`} 
+          label={user?.is_mining ? "Mining Hashes" : "Hashrate"} 
+          value={user?.is_mining ? `${(Math.random() * 100 + 400).toFixed(2)} H/s` : `${(user?.hashrate_multiplier || 1).toFixed(1)}x`} 
         />
         <StatCard 
           icon={<TrendingUp className="text-blue-500" />} 
@@ -501,6 +509,68 @@ function ReferralSystem() {
 }
 
 function BoostSystem() {
+  const { user, token, updateUser } = useAuth();
+  const [usdtTxId, setUsdtTxId] = useState("");
+  const [usdtAmount, setUsdtAmount] = useState("");
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const upgradeOnix = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/upgrade/onix", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({ multiplier: (user?.hashrate_multiplier || 1) + 0.1 })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        updateUser({ balance: data.newBalance, hashrate_multiplier: data.newMultiplier });
+        setMessage("Hashrate upgraded successfully!");
+      } else {
+        setMessage(data.error);
+      }
+    } catch (err) {
+      setMessage("Failed to upgrade");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const submitUsdt = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!usdtTxId || !usdtAmount) return setMessage("Please fill all fields");
+    setLoading(true);
+    try {
+      const res = await fetch("/api/upgrade/usdt", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({ txId: usdtTxId, amount: parseFloat(usdtAmount) })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setMessage("Request submitted! Admin will verify soon.");
+        setUsdtTxId("");
+        setUsdtAmount("");
+      } else {
+        setMessage(data.error);
+      }
+    } catch (err) {
+      setMessage("Failed to submit request");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const nextMultiplier = (user?.hashrate_multiplier || 1) + 0.1;
+  const upgradeCost = Math.floor(nextMultiplier * 50);
+
   return (
     <motion.div 
       initial={{ opacity: 0, scale: 0.95 }}
@@ -513,26 +583,95 @@ function BoostSystem() {
         <p className="text-zinc-400">Supercharge your mining performance.</p>
       </div>
 
-      <div className="space-y-4">
-        <BoostItem 
-          title="Turbo Hashrate" 
-          description="Increase hashrate by 2.0x for 24 hours" 
-          price="5.00 ONIX" 
-          icon={<Zap className="text-yellow-500" />}
-        />
-        <BoostItem 
-          title="Energy Refill" 
-          description="Instantly refill your energy to 100%" 
-          price="2.00 ONIX" 
-          icon={<Battery className="text-emerald-500" />}
-        />
-        <BoostItem 
-          title="Level Skip" 
-          description="Instantly advance to the next level" 
-          price="10.00 ONIX" 
-          icon={<TrendingUp className="text-blue-500" />}
-        />
+      <div className="bg-zinc-900/50 border border-white/5 rounded-3xl p-8 space-y-6">
+        <div className="flex items-center gap-3">
+          <Pickaxe className="w-6 h-6 text-emerald-500" />
+          <h3 className="text-xl font-bold">Permanent Upgrades</h3>
+        </div>
+        <div className="flex items-center justify-between p-5 bg-black/40 rounded-2xl border border-white/5 group hover:border-emerald-500/30 transition-colors">
+           <div className="space-y-1">
+             <p className="font-bold text-lg">Hashrate Level Up</p>
+             <p className="text-xs text-zinc-500">Increase multiplier to <span className="text-emerald-400 font-bold">{nextMultiplier.toFixed(1)}x</span></p>
+           </div>
+           <button 
+             onClick={upgradeOnix}
+             disabled={loading || (user?.balance || 0) < upgradeCost}
+             className={cn(
+               "px-6 py-3 rounded-xl font-bold text-sm transition-all active:scale-95",
+               (user?.balance || 0) >= upgradeCost 
+                 ? "bg-emerald-500 text-black shadow-[0_0_20px_rgba(16,185,129,0.3)]" 
+                 : "bg-zinc-800 text-zinc-500 cursor-not-allowed"
+             )}
+           >
+             {upgradeCost} ONIX
+           </button>
+        </div>
       </div>
+
+      <div className="bg-zinc-900/50 border border-white/5 rounded-3xl p-8 space-y-6 relative overflow-hidden">
+        <div className="absolute top-0 right-0 p-4 opacity-10">
+          <Zap className="w-24 h-24 text-blue-500" />
+        </div>
+        <div className="flex items-center gap-3">
+          <ShieldCheck className="w-6 h-6 text-blue-500" />
+          <h3 className="text-xl font-bold">USDT Premium Upgrade</h3>
+        </div>
+        <p className="text-sm text-zinc-400 leading-relaxed">
+          Send USDT (TRC20) to the official ONIX deposit address and submit your Transaction ID. 
+          Verified deposits grant a permanent <span className="text-blue-400 font-bold">+0.5x</span> boost.
+        </p>
+        
+        <div className="bg-black/60 p-5 rounded-2xl border border-blue-500/20 space-y-2">
+          <p className="text-[10px] uppercase text-zinc-500 font-bold tracking-widest">USDT Deposit Address (TRC20)</p>
+          <div className="flex items-center justify-between gap-4">
+            <code className="text-xs text-blue-400 break-all font-mono">T9yD6S3P7V9yD6S3P7V9yD6S3P7V9yD6S3P7</code>
+            <button 
+              onClick={() => navigator.clipboard.writeText("T9yD6S3P7V9yD6S3P7V9yD6S3P7V9yD6S3P7")}
+              className="p-2 bg-white/5 rounded-lg hover:bg-white/10"
+            >
+              <Users className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        <form onSubmit={submitUsdt} className="space-y-4">
+          <div className="space-y-2">
+            <label className="text-[10px] uppercase text-zinc-500 ml-1">Transaction ID (TXID)</label>
+            <input 
+              placeholder="Paste your TXID here" 
+              value={usdtTxId}
+              onChange={e => setUsdtTxId(e.target.value)}
+              className="w-full bg-black border border-white/10 rounded-xl px-5 py-4 text-sm focus:border-blue-500/50 outline-none transition-colors"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-[10px] uppercase text-zinc-500 ml-1">Amount (USDT)</label>
+            <input 
+              type="number"
+              placeholder="e.g. 10" 
+              value={usdtAmount}
+              onChange={e => setUsdtAmount(e.target.value)}
+              className="w-full bg-black border border-white/10 rounded-xl px-5 py-4 text-sm focus:border-blue-500/50 outline-none transition-colors"
+            />
+          </div>
+          <button 
+            disabled={loading}
+            className="w-full bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-2xl font-bold shadow-lg shadow-blue-600/20 transition-all active:scale-95"
+          >
+            {loading ? "SUBMITTING..." : "SUBMIT FOR VERIFICATION"}
+          </button>
+        </form>
+      </div>
+
+      {message && (
+        <motion.p 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center text-sm font-medium text-emerald-400 bg-emerald-400/10 py-3 rounded-xl border border-emerald-400/20"
+        >
+          {message}
+        </motion.p>
+      )}
     </motion.div>
   );
 }
@@ -560,7 +699,7 @@ function BoostItem({ title, description, price, icon }: { title: string; descrip
 function GlobalStats() {
   const { stats } = useSocket();
   const totalSupply = 1000000000;
-  const minedPercent = (stats.totalMined / totalSupply) * 100;
+  const minedPercent = (stats.totalMined / (totalSupply * 0.5)) * 100; // 50% for mining
 
   return (
     <motion.div 
@@ -587,7 +726,7 @@ function GlobalStats() {
 
           <div className="space-y-3">
             <div className="flex justify-between text-xs font-medium uppercase tracking-wider text-zinc-500">
-              <span>Supply Progress</span>
+              <span>Mining Pool Progress</span>
               <span>{minedPercent.toFixed(6)}%</span>
             </div>
             <div className="h-3 bg-zinc-800 rounded-full overflow-hidden border border-white/5">
@@ -599,7 +738,7 @@ function GlobalStats() {
             </div>
             <div className="flex justify-between text-[10px] text-zinc-600 font-mono">
               <span>0 ONIX</span>
-              <span>{totalSupply.toLocaleString()} ONIX (TOTAL SUPPLY)</span>
+              <span>500,000,000 ONIX (MINING CAP)</span>
             </div>
           </div>
         </div>
@@ -610,17 +749,96 @@ function GlobalStats() {
             <p className="text-3xl font-bold">{stats.online}</p>
           </div>
           <div className="bg-zinc-900/50 border border-white/5 rounded-2xl p-6">
-            <p className="text-zinc-500 text-xs uppercase mb-1">Daily Emission</p>
-            <p className="text-3xl font-bold">10,000</p>
+            <p className="text-zinc-500 text-xs uppercase mb-1">Current Block</p>
+            <p className="text-3xl font-bold text-blue-400">#{stats.currentBlock.toLocaleString()}</p>
           </div>
+          <div className="bg-zinc-900/50 border border-white/5 rounded-2xl p-6">
+            <p className="text-zinc-500 text-xs uppercase mb-1">Daily Emission</p>
+            <p className="text-3xl font-bold text-emerald-400">10,000</p>
+          </div>
+          <div className="bg-zinc-900/50 border border-white/5 rounded-2xl p-6">
+            <p className="text-zinc-500 text-xs uppercase mb-1">Total Burned</p>
+            <p className="text-3xl font-bold text-red-500">
+              {stats.totalBurned.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+            </p>
+          </div>
+        </div>
+
+        <div className="bg-zinc-900/50 border border-white/5 rounded-3xl p-8 space-y-6">
+          <h3 className="text-xl font-bold flex items-center gap-2">
+            <ShieldCheck className="w-5 h-5 text-emerald-500" />
+            Tokenomics Allocation
+          </h3>
+          <div className="space-y-4">
+            <AllocationBar label="Mining Pool" percentage={50} color="bg-emerald-500" amount="500M" />
+            <AllocationBar label="Marketing" percentage={30} color="bg-blue-500" amount="300M" />
+            <AllocationBar label="Burn" percentage={20} color="bg-red-500" amount="200M" />
+          </div>
+          <p className="text-[10px] text-zinc-500 italic text-center">
+            Calculated for 1,000,000 active miners. 2% of all mining rewards are permanently burned.
+          </p>
         </div>
       </div>
     </motion.div>
   );
 }
 
+function AllocationBar({ label, percentage, color, amount }: { label: string; percentage: number; color: string; amount: string }) {
+  return (
+    <div className="space-y-2">
+      <div className="flex justify-between text-xs">
+        <span className="text-zinc-400">{label}</span>
+        <span className="font-bold">{percentage}% ({amount})</span>
+      </div>
+      <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+        <motion.div 
+          initial={{ width: 0 }}
+          animate={{ width: `${percentage}%` }}
+          className={cn("h-full", color)}
+        />
+      </div>
+    </div>
+  );
+}
+
 function Profile() {
-  const { user } = useAuth();
+  const { user, token, updateUser } = useAuth();
+  const [wallet, setWallet] = useState(user?.wallet_address || "");
+  const [isEditing, setIsEditing] = useState(!user?.wallet_address);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+
+  const saveWallet = async () => {
+    if (!wallet || !/^0x[a-fA-F0-9]{40}$/.test(wallet)) {
+      setMessage("Invalid BNB wallet address");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch("/api/user/wallet", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ walletAddress: wallet })
+      });
+
+      if (res.ok) {
+        updateUser({ wallet_address: wallet });
+        setIsEditing(false);
+        setMessage("Wallet saved successfully!");
+      } else {
+        const data = await res.json();
+        setMessage(data.error);
+      }
+    } catch (err) {
+      setMessage("Failed to save wallet");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <motion.div 
@@ -641,7 +859,69 @@ function Profile() {
         </div>
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-6">
+        <div className="bg-zinc-900/50 border border-white/5 rounded-3xl p-8 space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-yellow-500/10 rounded-xl flex items-center justify-center">
+                <ShieldCheck className="w-6 h-6 text-yellow-500" />
+              </div>
+              <div>
+                <h3 className="font-bold">BNB Wallet (BEP-20)</h3>
+                <p className="text-xs text-zinc-500 uppercase tracking-tighter font-mono">Binance Smart Chain</p>
+              </div>
+            </div>
+            {!isEditing && (
+              <button 
+                onClick={() => setIsEditing(true)}
+                className="text-xs text-emerald-500 font-bold hover:underline"
+              >
+                EDIT
+              </button>
+            )}
+          </div>
+
+          {isEditing ? (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-[10px] uppercase text-zinc-500 ml-1 font-bold tracking-widest">Wallet Address</label>
+                <input 
+                  value={wallet}
+                  onChange={(e) => setWallet(e.target.value)}
+                  placeholder="0x..."
+                  className="w-full bg-black border border-white/10 rounded-2xl px-5 py-4 text-sm font-mono focus:border-emerald-500/50 outline-none transition-colors"
+                />
+              </div>
+              <button 
+                onClick={saveWallet}
+                disabled={loading}
+                className="w-full bg-emerald-500 text-black font-bold py-4 rounded-2xl hover:bg-emerald-400 transition-all active:scale-95 shadow-lg shadow-emerald-500/20"
+              >
+                {loading ? "SAVING..." : "CONFIRM WALLET"}
+              </button>
+            </div>
+          ) : (
+            <div className="bg-black/40 p-5 rounded-2xl border border-emerald-500/20 flex items-center justify-between gap-4">
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] uppercase text-zinc-500 font-bold tracking-widest mb-1">Confirmed Address</p>
+                <p className="text-sm font-mono text-emerald-400 truncate">{user?.wallet_address}</p>
+              </div>
+              <div className="bg-emerald-500/10 p-2 rounded-lg">
+                <ShieldCheck className="w-5 h-5 text-emerald-500" />
+              </div>
+            </div>
+          )}
+
+          {message && (
+            <p className={cn(
+              "text-center text-xs font-bold py-2 rounded-lg",
+              message.includes("success") ? "text-emerald-500 bg-emerald-500/10" : "text-red-500 bg-red-500/10"
+            )}>
+              {message}
+            </p>
+          )}
+        </div>
+
         <div className="bg-zinc-900/50 border border-white/5 rounded-2xl p-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <ShieldCheck className="text-emerald-500" />
@@ -669,35 +949,44 @@ function Profile() {
 function AdminPanel() {
   const { token } = useAuth();
   const [users, setUsers] = useState<any[]>([]);
+  const [upgrades, setUpgrades] = useState<any[]>([]);
+  const [view, setView] = useState<"users" | "upgrades">("users");
+
+  const fetchData = async () => {
+    try {
+      const usersRes = await fetch("/api/admin/users", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (usersRes.ok) setUsers(await usersRes.json());
+
+      const upgradesRes = await fetch("/api/admin/usdt-upgrades", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (upgradesRes.ok) setUpgrades(await upgradesRes.json());
+    } catch (err) {
+      console.error("Admin fetch error:", err);
+    }
+  };
 
   useEffect(() => {
-    const fetchAdminUsers = async () => {
-      try {
-        const res = await fetch("/api/admin/users", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        
-        const text = await res.clone().text();
-        if (text.includes("Rate exceeded")) {
-          console.warn("Rate limit hit for admin users. Retrying in 5s...");
-          setTimeout(fetchAdminUsers, 5000);
-          return;
-        }
-
-        const contentType = res.headers.get("content-type");
-        if (res.ok && contentType && contentType.includes("application/json")) {
-          const data = await res.json();
-          setUsers(data);
-        } else {
-          console.error("Failed to fetch admin users: Invalid response");
-        }
-      } catch (err) {
-        console.error("Admin fetch network error:", err);
-      }
-    };
-
-    fetchAdminUsers();
+    fetchData();
   }, [token]);
+
+  const approveUpgrade = async (id: number) => {
+    try {
+      const res = await fetch("/api/admin/usdt-upgrades/approve", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({ upgradeId: id, multiplierBoost: 0.5 })
+      });
+      if (res.ok) fetchData();
+    } catch (err) {
+      console.error("Approve error:", err);
+    }
+  };
 
   return (
     <motion.div 
@@ -707,38 +996,97 @@ function AdminPanel() {
     >
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold">Admin Panel</h2>
-        <ShieldCheck className="w-10 h-10 opacity-50 text-emerald-500" />
+        <div className="flex bg-zinc-900 rounded-xl p-1 border border-white/5">
+          <button 
+            onClick={() => setView("users")}
+            className={cn("px-4 py-2 rounded-lg text-xs font-bold transition-all", view === "users" ? "bg-emerald-500 text-black" : "text-zinc-500")}
+          >
+            USERS
+          </button>
+          <button 
+            onClick={() => setView("upgrades")}
+            className={cn("px-4 py-2 rounded-lg text-xs font-bold transition-all", view === "upgrades" ? "bg-blue-500 text-white" : "text-zinc-500")}
+          >
+            USDT REQS
+          </button>
+        </div>
       </div>
-      <div className="bg-zinc-900/50 border border-white/5 rounded-2xl overflow-hidden">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-white/5 text-zinc-400 uppercase text-[10px] tracking-widest">
-            <tr>
-              <th className="p-4">User</th>
-              <th className="p-4">Balance</th>
-              <th className="p-4">Status</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-white/5">
-            {users.map(u => (
-              <tr key={u.id}>
-                <td className="p-4">
-                  <p className="font-medium">{u.username}</p>
-                  <p className="text-xs text-zinc-500">{u.email}</p>
-                </td>
-                <td className="p-4 font-mono">{u.balance.toFixed(4)}</td>
-                <td className="p-4">
-                  <span className={cn(
-                    "px-2 py-1 rounded text-[10px] font-bold",
-                    u.is_mining ? "bg-emerald-500/10 text-emerald-500" : "bg-zinc-800 text-zinc-500"
-                  )}>
-                    {u.is_mining ? "MINING" : "IDLE"}
-                  </span>
-                </td>
+
+      {view === "users" ? (
+        <div className="bg-zinc-900/50 border border-white/5 rounded-2xl overflow-hidden">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-white/5 text-zinc-400 uppercase text-[10px] tracking-widest">
+              <tr>
+                <th className="p-4">User</th>
+                <th className="p-4">Balance</th>
+                <th className="p-4">Mining Info</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {users.map(u => (
+                <tr key={u.id}>
+                  <td className="p-4">
+                    <p className="font-medium">{u.username}</p>
+                    <p className="text-xs text-zinc-500">
+                      {u.email ? `${u.email.substring(0, 5)}...` : "N/A"}
+                    </p>
+                  </td>
+                  <td className="p-4 font-mono">{u.balance.toFixed(4)}</td>
+                  <td className="p-4">
+                    <div className="flex flex-col gap-1">
+                      <span className="text-xs font-bold text-emerald-500">{u.hashrate_multiplier.toFixed(1)}x</span>
+                      <span className={cn(
+                        "px-2 py-1 rounded text-[10px] font-bold w-fit",
+                        u.is_mining ? "bg-emerald-500/10 text-emerald-500" : "bg-zinc-800 text-zinc-500"
+                      )}>
+                        {u.is_mining ? "MINING" : "IDLE"}
+                      </span>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="bg-zinc-900/50 border border-white/5 rounded-2xl overflow-hidden">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-white/5 text-zinc-400 uppercase text-[10px] tracking-widest">
+              <tr>
+                <th className="p-4">User</th>
+                <th className="p-4">TXID / Amount</th>
+                <th className="p-4">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {upgrades.map(u => (
+                <tr key={u.id}>
+                  <td className="p-4">
+                    <p className="font-medium">{u.username}</p>
+                    <p className="text-xs text-zinc-500">{u.status.toUpperCase()}</p>
+                  </td>
+                  <td className="p-4">
+                    <p className="text-[10px] font-mono text-zinc-500 truncate max-w-[100px]">{u.tx_id}</p>
+                    <p className="font-bold text-blue-400">{u.amount} USDT</p>
+                  </td>
+                  <td className="p-4">
+                    {u.status === 'pending' ? (
+                      <button 
+                        onClick={() => approveUpgrade(u.id)}
+                        className="bg-blue-500 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold"
+                      >
+                        APPROVE
+                      </button>
+                    ) : (
+                      <span className="text-emerald-500 text-[10px] font-bold">VERIFIED</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </motion.div>
   );
 }

@@ -4,6 +4,8 @@ import { useAuth } from "./AuthContext";
 interface GlobalStats {
   online: number;
   totalMined: number;
+  currentBlock: number;
+  totalBurned: number;
 }
 
 interface SocketContextType {
@@ -16,7 +18,7 @@ const SocketContext = createContext<SocketContextType | undefined>(undefined);
 export function SocketProvider({ children }: { children: ReactNode }) {
   const { token, updateUser } = useAuth();
   const [socket, setSocket] = useState<WebSocket | null>(null);
-  const [stats, setStats] = useState<GlobalStats>({ online: 0, totalMined: 0 });
+  const [stats, setStats] = useState<GlobalStats>({ online: 0, totalMined: 0, currentBlock: 0, totalBurned: 0 });
 
   useEffect(() => {
     let ws: WebSocket | null = null;
@@ -43,7 +45,12 @@ export function SocketProvider({ children }: { children: ReactNode }) {
           if (data.type === "update") {
             updateUser(data);
           } else if (data.type === "global_stats") {
-            setStats({ online: data.online, totalMined: data.totalMined });
+            setStats({ 
+              online: data.online, 
+              totalMined: data.totalMined,
+              currentBlock: data.currentBlock,
+              totalBurned: data.totalBurned || 0
+            });
           }
         } catch (err) {
           console.error("WS message parse error:", err);

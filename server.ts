@@ -153,7 +153,16 @@ app.post("/api/auth/login", async (req, res) => {
       const user = db.prepare("SELECT * FROM users WHERE id = ?").get(result.lastInsertRowid) as any;
       const token = jwt.sign({ id: user.id, username: user.username, isAdmin: user.is_admin }, JWT_SECRET, { expiresIn: "7d" });
       console.log("Registration successful for:", email);
-      return res.json({ token, user });
+      return res.json({ 
+  token, 
+  user: {
+    id: user.id,
+    username: user.username,
+    email: user.email,
+    balance: user.balance,
+    energy: user.energy
+  }
+});
     } else {
       console.log("Processing login...");
       const user = db.prepare("SELECT * FROM users WHERE email = ? OR username = ?").get(email, rawEmail) as any;
@@ -183,7 +192,16 @@ app.post("/api/auth/login", async (req, res) => {
 
       const token = jwt.sign({ id: user.id, username: user.username, isAdmin: user.is_admin }, JWT_SECRET, { expiresIn: "7d" });
       console.log("Login successful for:", email);
-      return res.json({ token, user });
+     return res.json({ 
+  token, 
+  user: {
+    id: user.id,
+    username: user.username,
+    email: user.email,
+    balance: user.balance,
+    energy: user.energy
+  }
+});
     }
   } catch (err: any) {
     console.error("Auth error details:", err);
